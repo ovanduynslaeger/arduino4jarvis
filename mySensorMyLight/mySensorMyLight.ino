@@ -28,7 +28,7 @@ uint8_t len=40;
 uint32_t col=255;
 
 //Bleu
-String colorhex="0000FF";
+String colorhex="04B4AE";
 
 
 /***

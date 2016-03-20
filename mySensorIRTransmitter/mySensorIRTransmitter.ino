@@ -1,6 +1,3 @@
-//#include <IRremote.h>
-//#include <IRremoteInt.h>
-
 // Example sketch showing how to control ir devices
 // An IR LED must be connected to Arduino PWM pin 3.
 // An optional ir receiver can be connected to PWM pin 8. 
@@ -12,32 +9,36 @@
 #include <SPI.h>
 #include <IRLib.h>
 
-//int RECV_PIN = 8;
+int RECV_PIN = 8;
 
-// Samsung TV Commands
-// Power ON/OFF
+//Led infrarouge = 3
+const int LED=6; //declaration constante de broche  pour la led d'affichage
+
+
+#define CHILD_1  5  // childId
 unsigned int SAMSUNG_PWR[68]={4600,4350,700,1550,650,1550,650,1600,650,450,650,450,650,450,650,450,700,400,700,1550,650,1550,650,1600,650,450,650,450,650,450,700,450,650,450,650,450,650,1550,700,450,650,450,650,450,650,450,650,450,700,400,650,1600,650,450,650,1550,650,1600,650,1550,650,1550,700,1550,650,1550,650};
 
-//LED
-const int LED=5;
 
-#define CHILD_1  3  // childId
-
-IRsend irsend;
-IRsendRaw irsendRaw;
-//IRrecv irrecv(RECV_PIN);
-//IRdecode decoder;
+//IRsend irsend;
+IRsendRaw irsendraw;
+IRrecv irrecv(RECV_PIN);
+IRdecode decoder;
 //decode_results results;
+
 unsigned int Buffer[RAWBUF];
 MySensor gw;
 MyMessage msg(CHILD_1, V_VAR1);
 
 void setup()  
 {  
-  pinMode(LED, OUTPUT);
-//  irrecv.enableIRIn(); // Start the ir receiver
-//  decoder.UseExtnBuf(Buffer);
+  pinMode(LED, OUTPUT); //met la broche en sortie 
+  digitalWrite(LED,HIGH); // met la broche au niveau haut (5V) – allume la LED
+  delay(500);
+  digitalWrite(LED,LOW); // met la broche au niveau haut (5V) – allume la LED
+  irrecv.enableIRIn(); // Start the ir receiver
+  decoder.UseExtnBuf(Buffer);
   gw.begin(incomingMessage);
+  Serial.begin(57600);
 
   // Send the sketch version information to the gateway and Controller
   gw.sendSketchInfo("IR Sensor", "1.0");
@@ -50,7 +51,7 @@ void setup()
 void loop() 
 {
   gw.process();
-/*  if (irrecv.GetResults(&decoder)) {
+  if (irrecv.GetResults(&decoder)) {
     irrecv.resume(); 
     decoder.decode();
     decoder.DumpResults();
@@ -60,7 +61,6 @@ void loop()
     // Send ir result to gw
     gw.send(msg.set(buffer));
   }
-  */
 }
 
 
@@ -68,20 +68,34 @@ void loop()
 void incomingMessage(const MyMessage &message) {
   // We only expect one type of message from controller. But we better check anyway.
   if (message.type==V_LIGHT) {
+     digitalWrite(LED,HIGH); // met la broche au niveau haut (5V) – allume la LED
+
      int incomingRelayStatus = message.getInt();
-     if (incomingRelayStatus == 0) {
-      sendCommandToDevice("NEC",0xC728D); //VideoProjecteur Off
-     }
      if (incomingRelayStatus == 1) {
-      sendCommandToDevice("UNKNOWN",SAMSUNG_PWR); //TV On
-     } 
-     if (incomingRelayStatus == 2) {
-      sendCommandToDevice("UNKNOWN",SAMSUNG_PWR); //TV Off
+      //irsend.send(NEC, 0xCF20D, 32); // On Vidéoprojecteur
+      setVPOn();
      }
-     Serial.print("Cmd recv = ");
-     Serial.println(message.getInt());
+     if (incomingRelayStatus == 0) {
+      //irsend.send(NEC, 0xC728D, 32); // Off Vidéoprojecteur
+      setVPOff();
+     }
+     if (incomingRelayStatus == 3) {
+      //irsend.send(NEC, 0xC728D, 32); // Off Vidéoprojecteur
+      setMuteOn();
+     }
+     if (incomingRelayStatus == 4) {
+      //irsend.send(NEC, 0xC728D, 32); // Off Vidéoprojecteur
+      setMuteOff();
+     }
+     if (incomingRelayStatus == 2) {
+        Serial.println("Send IR SAMSUNG_PWR");
+        irsendraw.send(SAMSUNG_PWR,68,38); // On/Off TV
+     }
+
+     digitalWrite(LED,LOW); // met la broche au niveau bas (0V) – éteint la LED
+     
      // Start receiving ir again...
-//    irrecv.enableIRIn(); 
+    irrecv.enableIRIn(); 
   }
 }
     
@@ -137,37 +151,23 @@ void incomingMessage(const MyMessage &message) {
 */
 
 
-
-unsigned long NO_DATA=0;
-unsigned int NO_ADDRESS=0;
-unsigned int NO_BUF[0];
- 
-void sendCommandToDevice(String device, unsigned int buf[]) {
-  sendCommandToDevice(device,NO_DATA,buf,NO_ADDRESS);
+void setVPOn() {
+  Serial.write("\r*pow=on#\r");
+  Serial.flush();
 }
 
-void sendCommandToDevice(String device, unsigned long data) {
-  sendCommandToDevice(device,data,NO_BUF,NO_ADDRESS);
+void setMuteOn() {
+  Serial.write("\r*mute=on#\r");
+  Serial.flush();
 }
 
-
-void sendCommandToDevice(String device, unsigned long data, unsigned int buf[], unsigned int address) {
-    if (device=="SONY") irsend.send(SONY,data,40);
-    if (device=="NEC") irsend.send(NEC,data,32);
-    if (device=="RC5") irsend.send(RC5,data,36);
-    if (device=="RC6") irsend.send(RC6,data,36);
-    if (device=="JVC") irsend.send(JVC,data,38);
-    //if (device=="SAMSUNG") irsend.sendSAMSUNG(data,38);
-    if (device=="UNKNOWN") {
-      Serial.println("send raw");
-      Serial.println(sizeof(buf));
-      irsendRaw.send(buf,68,38);
-    }
+void setMuteOff() {
+  Serial.write("\r*mute=off#\r");
+  Serial.flush();
 }
 
-void switchLed() {
-  digitalWrite(LED,HIGH);
-  delay(500);
-  digitalWrite(LED,LOW);
+void setVPOff() {
+  Serial.write("\r*pow=off#\r");
+  Serial.flush();
 }
 
